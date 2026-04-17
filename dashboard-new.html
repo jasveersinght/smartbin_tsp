@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waste Management Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <!-- Add Leaflet Routing Machine -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <style>
+        #map { height: 600px; position: relative; }
+        
+        /* Route Panel Styles */
+        .route-panel {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.7);
+            color: #fff;
+            padding: 18px;
+            border-radius: 18px;
+            box-shadow: 0 25px 45px -28px rgba(15, 23, 42, 0.65);
+            max-width: 320px;
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        
+        .route-panel.hidden {
+            display: none;
+        }
+
+        .route-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .route-step {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.2);
+            font-size: 0.9em;
+        }
+
+        .route-step:last-child {
+            border-bottom: none;
+        }
+        
+        /* Loading overlay */
+        #routeLoading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            flex-direction: column;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border-left-color: #38bdf8;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Custom route line style */
+        .leaflet-routing-container {
+            display: none; /* Hide default routing container */
+        }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .admin-only { display: none; }
+        body.admin .admin-only { display: block; }
+        .leaflet-routing-container {
+            display: none;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        .modal-overlay {
+            z-index: 1500;
+        }
+
+        .glass-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -20px rgba(15, 23, 42, 0.35);
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.75rem;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .stat-card {
+            transition: box-shadow 0.2s ease;
+        }
+
+        .stat-card:hover {
+            box-shadow: 0 18px 30px -22px rgba(15, 23, 42, 0.35);
+        }
+
+        .table-head {
+            background: #f8fafc;
+        }
+
+        .section-title {
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: #1e293b;
+        }
+
+        .section-title::before {
+            content: none;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: #fff;
+            padding: 0.55rem 1.1rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-secondary {
+            border: 1px solid #2563eb;
+            color: #2563eb;
+            padding: 0.55rem 1.1rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 18px 30px -20px rgba(15, 23, 42, 0.35);
+            border: 1px solid #e2e8f0;
+        }
+
+        .pill-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border-radius: 999px;
+            padding: 0.3rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: #e0f2fe;
+            color: #1d4ed8;
+        }
+
+        table tbody tr:hover {
+            background: #f1f5f9;
+        }
+
+        .floating-badge {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(59, 130, 246, 0.15);
+            color: #1d4ed8;
+            box-shadow: 0 15px 25px -20px rgba(37, 99, 235, 0.6);
+        }
+
+        footer {
+            background: rgba(15, 23, 42, 0.85);
+            color: rgba(226, 232, 240, 0.9);
+            backdrop-filter: blur(14px);
+        }
+
+        footer a {
+            color: rgba(96, 165, 250, 0.9);
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="py-6">
+            <div class="container mx-auto px-4">
+                <div class="glass-card rounded-2xl px-6 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div class="space-y-2">
+                        <span class="floating-badge">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg>
+                            Live Operations
+                        </span>
+                        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">Smart Waste Management Dashboard</h1>
+                        <p class="text-sm text-slate-500">Monitor bin health, predict fill levels, and navigate efficient collection routes in real time.</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <div id="userInfo" class="hidden glass-card rounded-xl px-4 py-2 text-sm text-slate-600">
+                            <span class="mr-3">Welcome, <span id="username" class="font-semibold text-slate-800">Admin</span></span>
+                            <button id="logoutBtn" class="btn-danger text-xs">
+                                Logout
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button id="loginBtn" class="btn-secondary">
+                                Admin Login
+                            </button>
+                            <button id="addBinBtn" class="btn-primary">
+                                + Add Bin
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Login Modal -->
+        <div id="loginModal" class="modal-overlay fixed inset-0 bg-slate-900/70 backdrop-blur hidden flex items-center justify-center px-4">
+            <div class="modal-card w-full max-w-md p-7 relative">
+                <button id="closeLoginModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600" aria-label="Close login">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="mb-5">
+                    <h2 class="text-2xl font-bold text-gray-800">Admin Login</h2>
+                    <p class="text-sm text-gray-500 mt-1">Sign in to unlock admin-only actions like adding bins and managing routes.</p>
+                </div>
+                <div id="loginStatus" class="hidden mb-4 rounded-lg border px-4 py-3 text-sm"></div>
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2" for="username">Username</label>
+                        <input type="text" id="usernameInput" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter admin username" autocomplete="username" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2" for="password">Password</label>
+                        <div class="relative">
+                            <input type="password" id="passwordInput" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-12" placeholder="Enter password" autocomplete="current-password" required>
+                            <button type="button" id="togglePasswordVisibility" class="absolute inset-y-0 right-0 px-3 text-sm text-blue-600 hover:text-blue-500" aria-label="Toggle password visibility">Show</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center text-sm text-gray-600">
+                            <input type="checkbox" id="rememberMe" class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            Remember me on this device
+                        </label>
+                        <span class="text-xs text-gray-400">Default credentials: admin / admin123</span>
+                    </div>
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" id="cancelLogin" class="btn-secondary">
+                            Cancel
+                        </button>
+                        <button type="submit" id="loginSubmitBtn" class="btn-primary flex items-center">
+                            <svg id="loginSpinner" class="hidden animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            <span id="loginBtnText">Login</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 pb-12 flex-1">
+            <!-- Map Section -->
+            <div class="glass-card rounded-2xl overflow-hidden mb-8 relative">
+                <div class="p-5 border-b border-slate-200/60 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <h2 class="section-title">Bin Locations</h2>
+                        <p class="text-sm text-slate-500 mt-1">Live map with current bin status and direct routing support.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="pill-tag bg-blue-100 text-blue-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 12 17.657 7.757 16.243 6.343 12 10.586 7.757 6.343 6.343 7.757 10.586 12 6.343 16.243 7.757 17.657 12 13.414 16.243 17.657 17.657 16.243z"/></svg>
+                            Click a bin to get directions
+                        </span>
+                        <span class="pill-tag bg-emerald-100 text-emerald-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            Add bins to update routes instantly
+                        </span>
+                        <span class="pill-tag bg-rose-100 text-rose-600" id="nextOverflowPill">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg>
+                            Calculating next overflow...
+                        </span>
+                    </div>
+                </div>
+                <div id="map" class="w-full">
+                    <div id="routeLoading" class="hidden">
+                        <div class="spinner"></div>
+                        <p>Calculating best route...</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Stats Overview -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="glass-card p-5 rounded-2xl stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-400">Total Bins</p>
+                            <p class="text-3xl font-bold text-slate-800" id="totalBins">0</p>
+                        </div>
+                        <div class="stat-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7" /></svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-3">Real-time bins tracked across Chennai.</p>
+                </div>
+                <div class="glass-card p-5 rounded-2xl stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-400">Full Bins</p>
+                            <p class="text-3xl font-bold text-rose-500" id="fullBins">0</p>
+                        </div>
+                        <div class="stat-icon text-rose-500 bg-rose-100/60">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3" /></svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-3">Prioritize these bins for immediate collection.</p>
+                </div>
+                <div class="glass-card p-5 rounded-2xl stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-400">Moderate Bins</p>
+                            <p class="text-3xl font-bold text-amber-500" id="moderateBins">0</p>
+                        </div>
+                        <div class="stat-icon text-amber-500 bg-amber-100/60">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l2 2" /></svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-3">Monitor these bins to prevent overflow.</p>
+                </div>
+                <div class="glass-card p-5 rounded-2xl stat-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-400">Empty Bins</p>
+                            <p class="text-3xl font-bold text-emerald-500" id="emptyBins">0</p>
+                        </div>
+                        <div class="stat-icon text-emerald-500 bg-emerald-100/60">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-3">Bins ready for deployment in upcoming routes.</p>
+                </div>
+            </div>
+            <!-- Stats Overview -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Fill Level Prediction Chart -->
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="section-title">Bin Fill Level Prediction</h2>
+                        <span class="text-xs text-slate-400">24h horizon</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="fillPredictionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bins by Status -->
+                <div class="glass-card p-6 rounded-2xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="section-title">Bins by Status</h2>
+                        <span class="text-xs text-slate-400">Live snapshot</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bins List -->
+            <div class="glass-card rounded-2xl overflow-hidden">
+                <div class="p-5 border-b border-slate-200/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <h2 class="section-title">All Bins</h2>
+                        <p class="text-sm text-slate-500 mt-1">Comprehensive view with predicted overflow timings.</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="table-head">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Bin ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Location</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Fill Level</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Predicted Full In</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="binsList" class="bg-white/80 divide-y divide-slate-100">
+                            <!-- Bins will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Bin Modal -->
+    <div id="addBinModal" class="modal-overlay fixed inset-0 bg-slate-900/70 backdrop-blur hidden flex items-center justify-center px-4">
+        <div class="modal-card w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-5">
+                <div>
+                    <h3 class="text-2xl font-semibold text-slate-800">Add New Bin</h3>
+                    <p class="text-sm text-slate-500 mt-1">Drop precise coordinates to visualize immediately on the map.</p>
+                </div>
+                <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <form id="addBinForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2" for="binLocation">Location Name</label>
+                    <input type="text" id="binLocation" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Marina Beach Bin" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2" for="binLat">Latitude</label>
+                        <input type="number" step="0.000001" id="binLat" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="13.0827" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-medium mb-2" for="binLng">Longitude</label>
+                        <input type="number" step="0.000001" id="binLng" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="80.2707" required>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2" for="fillLevel">Current Fill Level (%)</label>
+                    <input type="number" id="fillLevel" min="0" max="100" class="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="45" required>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancelAddBin" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Add Bin</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add the routing script -->
+    <script src="js/routing.js"></script>
+    <script>
+        const API_URL = 'http://localhost:3000';
+        let bins = [];
+        let fillPredictionChart, statusChart;
+        let map, userLocation, userMarker, routeManager;
+        const binMarkers = new Map();
+        let isAdmin = false;
+
+        // DOM Elements
+        const addBinBtn = document.getElementById('addBinBtn');
+        const addBinModal = document.getElementById('addBinModal');
+        const closeAddBinModalBtn = document.getElementById('closeModal');
+        const cancelAddBin = document.getElementById('cancelAddBin');
+        const addBinForm = document.getElementById('addBinForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginModal = document.getElementById('loginModal');
+        const loginForm = document.getElementById('loginForm');
+        const cancelLogin = document.getElementById('cancelLogin');
+        const closeLoginModal = document.getElementById('closeLoginModal');
+        const loginStatus = document.getElementById('loginStatus');
+        const rememberMeCheckbox = document.getElementById('rememberMe');
+        const passwordInput = document.getElementById('passwordInput');
+        const togglePasswordVisibility = document.getElementById('togglePasswordVisibility');
+        const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+        const loginSpinner = document.getElementById('loginSpinner');
+        const loginBtnText = document.getElementById('loginBtnText');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const userInfo = document.getElementById('userInfo');
+        const usernameSpan = document.getElementById('username');
+        const bodyElement = document.body;
+
+        function openModalOverlay(modal) {
+            modal.classList.remove('hidden');
+            bodyElement.classList.add('modal-open');
+        }
+
+        function closeModalOverlay(modal) {
+            modal.classList.add('hidden');
+            if (loginModal.classList.contains('hidden') && addBinModal.classList.contains('hidden')) {
+                bodyElement.classList.remove('modal-open');
+            }
+        }
+
+        // Event Listeners
+        addBinBtn.addEventListener('click', () => openModalOverlay(addBinModal));
+        closeAddBinModalBtn.addEventListener('click', () => closeModalOverlay(addBinModal));
+        cancelAddBin.addEventListener('click', () => closeModalOverlay(addBinModal));
+        
+        // Login/Logout handlers
+        loginBtn.addEventListener('click', () => {
+            openModalOverlay(loginModal);
+            loginStatus.classList.add('hidden');
+            loginStatus.textContent = '';
+            loginForm.reset();
+            passwordInput.type = 'password';
+            togglePasswordVisibility.textContent = 'Show';
+            if (localStorage.getItem('rememberAdmin') === 'true') {
+                document.getElementById('usernameInput').value = localStorage.getItem('savedAdminUser') || 'admin';
+                rememberMeCheckbox.checked = true;
+            }
+            document.getElementById('usernameInput').focus();
+        });
+        cancelLogin.addEventListener('click', () => closeLoginModalHandler());
+        closeLoginModal.addEventListener('click', () => closeLoginModalHandler());
+        logoutBtn.addEventListener('click', handleLogout);
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('usernameInput').value.trim();
+            const password = passwordInput.value;
+            handleLogin(username, password);
+        });
+
+        togglePasswordVisibility.addEventListener('click', () => {
+            const isPassword = passwordInput.type === 'password';
+            passwordInput.type = isPassword ? 'text' : 'password';
+            togglePasswordVisibility.textContent = isPassword ? 'Hide' : 'Show';
+            passwordInput.focus();
+        });
+
+        addBinForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const payload = {
+                location_lat: parseFloat(document.getElementById('binLat').value),
+                location_lng: parseFloat(document.getElementById('binLng').value),
+                area: document.getElementById('binLocation').value.trim(),
+                fill_level: parseInt(document.getElementById('fillLevel').value, 10)
+            };
+
+            if (
+                Number.isNaN(payload.location_lat) ||
+                Number.isNaN(payload.location_lng) ||
+                Number.isNaN(payload.fill_level) ||
+                !payload.area
+            ) {
+                alert('Please provide valid latitude, longitude, fill level, and location name.');
+                return;
+            }
+
+            console.log('Submitting new bin to backend', payload);
+
+            try {
+                const response = await fetch(`${API_URL}/api/bins`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    throw new Error(errorBody.error || `Server responded with ${response.status}`);
+                }
+
+                const savedBin = await response.json();
+                console.log('Bin saved successfully', savedBin);
+
+                closeModalOverlay(addBinModal);
+                addBinForm.reset();
+
+                await fetchBins();
+
+                if (savedBin && savedBin.id != null) {
+                    const marker = binMarkers.get(savedBin.id);
+                    if (marker) {
+                        map.setView([savedBin.location_lat, savedBin.location_lng], 15);
+                        marker.openPopup();
+                    }
+                }
+
+                alert('Bin added successfully!');
+            } catch (error) {
+                console.error('Error adding bin:', error);
+                alert(`Failed to add bin. ${error.message || 'Please try again.'}`);
+            }
+        });
+
+        // Authentication functions
+        function closeLoginModalHandler() {
+            closeModalOverlay(loginModal);
+            loginStatus.classList.add('hidden');
+            loginStatus.textContent = '';
+            loginForm.reset();
+            loginSpinner.classList.add('hidden');
+            loginBtnText.textContent = 'Login';
+            loginSubmitBtn.disabled = false;
+        }
+
+        function showLoginStatus(message, type = 'info') {
+            loginStatus.textContent = message;
+            loginStatus.classList.remove('hidden');
+            loginStatus.classList.remove('border-green-200', 'border-red-200', 'border-blue-200', 'bg-green-50', 'bg-red-50', 'bg-blue-50', 'text-green-700', 'text-red-700', 'text-blue-700');
+
+            const styles = {
+                success: ['border-green-200', 'bg-green-50', 'text-green-700'],
+                error: ['border-red-200', 'bg-red-50', 'text-red-700'],
+                info: ['border-blue-200', 'bg-blue-50', 'text-blue-700']
+            }[type] || ['border-blue-200', 'bg-blue-50', 'text-blue-700'];
+
+            loginStatus.classList.add(...styles);
+        }
+
+        function setLoginLoading(isLoading) {
+            loginSubmitBtn.disabled = isLoading;
+            loginSpinner.classList.toggle('hidden', !isLoading);
+            loginBtnText.textContent = isLoading ? 'Signing in...' : 'Login';
+        }
+
+        function handleLogin(username, password) {
+            if (!username || !password) {
+                showLoginStatus('Please enter both username and password.', 'error');
+                return;
+            }
+
+            setLoginLoading(true);
+            showLoginStatus('Verifying credentials...', 'info');
+
+            setTimeout(() => {
+                const isValid = username === 'admin' && password === 'admin123';
+
+                if (isValid) {
+                    isAdmin = true;
+                    document.body.classList.add('admin');
+                    loginBtn.classList.add('hidden');
+                    userInfo.classList.remove('hidden');
+                    usernameSpan.textContent = username;
+                    localStorage.setItem('isLoggedIn', 'true');
+
+                    if (rememberMeCheckbox.checked) {
+                        localStorage.setItem('rememberAdmin', 'true');
+                        localStorage.setItem('savedAdminUser', username);
+                    } else {
+                        localStorage.removeItem('rememberAdmin');
+                        localStorage.removeItem('savedAdminUser');
+                    }
+
+                    showLoginStatus('Login successful! Redirecting...', 'success');
+
+                    setTimeout(() => {
+                        closeModalOverlay(loginModal);
+                    }, 600);
+                } else {
+                    showLoginStatus('Invalid credentials. Try admin / admin123.', 'error');
+                }
+
+                setLoginLoading(false);
+            }, 600);
+        }
+
+        function handleLogout() {
+            isAdmin = false;
+            document.body.classList.remove('admin');
+            loginBtn.classList.remove('hidden');
+            userInfo.classList.add('hidden');
+            localStorage.removeItem('isLoggedIn');
+        }
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([13.0827, 80.2707], 13); // Chennai coordinates
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Initialize route manager
+            routeManager = new RouteManager(map);
+
+            // Add user location marker if available
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    userLocation = [position.coords.latitude, position.coords.longitude];
+                    userMarker = L.marker(userLocation, {
+                        icon: L.divIcon({
+                            className: 'user-marker',
+                            html: '📍',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30]
+                        })
+                    }).addTo(map).bindPopup('Your location');
+                    map.setView(userLocation, 15);
+                });
+            }
+        }
+
+        // 4-tier color helper
+        function getBinColor(fillLevel) {
+            if (fillLevel <= 32) return '#22c55e';   // green  - Low
+            if (fillLevel <= 65) return '#facc15';   // yellow - Medium
+            if (fillLevel <= 89) return '#f97316';   // orange - High
+            return '#dc2626';                        // red    - Critical
+        }
+        function getBinStatus(fillLevel) {
+            if (fillLevel <= 32) return 'Low';
+            if (fillLevel <= 65) return 'Medium';
+            if (fillLevel <= 89) return 'High';
+            return 'Critical';
+        }
+
+        // Update map with bins
+        function updateMap() {
+            // Clear existing bin markers from map
+            binMarkers.forEach(marker => map.removeLayer(marker));
+            binMarkers.clear();
+
+            // Add bins to map
+            bins.forEach(bin => {
+                const color = getBinColor(bin.fill_level);
+                const status = getBinStatus(bin.fill_level);
+                const icon = L.divIcon({
+                    className: 'bin-marker',
+                    html: `<div style="background-color: ${color}; width: 22px; height: 22px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                });
+
+                const marker = L.marker([bin.location_lat, bin.location_lng], { icon })
+                    .addTo(map)
+                    .bindPopup(`
+                        <div class="p-2">
+                            <h3 class="font-bold">${bin.area}</h3>
+                            <p>Fill Level: <strong style="color:${color}">${bin.fill_level}%</strong></p>
+                            <p>Status: <strong style="color:${color}">${status}</strong></p>
+                            <button onclick="findRouteToBin(${JSON.stringify(bin).replace(/"/g, '&quot;')})" 
+                                    class="mt-2 px-2 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 w-full">
+                                Get Directions
+                            </button>
+                        </div>
+                    `);
+
+                binMarkers.set(bin.id, marker);
+            });
+        }
+
+        // Find route to bin
+        async function findRouteToBin(bin) {
+            try {
+                if (!bin || typeof bin.location_lat !== 'number' || typeof bin.location_lng !== 'number') {
+                    throw new Error('Invalid bin location');
+                }
+
+                // Ensure we have the latest user location
+                if (!userLocation) {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true,
+                            timeout: 5000,
+                            maximumAge: 0
+                        });
+                    });
+                    userLocation = [position.coords.latitude, position.coords.longitude];
+                }
+
+                // Update or create the user marker
+                if (!userMarker && userLocation) {
+                    userMarker = L.marker(userLocation, {
+                        icon: L.divIcon({
+                            className: 'user-marker',
+                            html: '📍',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30]
+                        })
+                    }).addTo(map).bindPopup('Your location');
+                } else if (userMarker && userLocation) {
+                    userMarker.setLatLng(userLocation);
+                }
+
+                // Delegate to the RouteManager
+                routeManager.findRouteToBin(bin, userLocation);
+            } catch (error) {
+                console.error('Error determining route:', error);
+                alert('Unable to determine route. ' + (error.message || 'Please try again.'));
+            }
+        }
+
+        // Clear route
+        function clearRoute() {
+            if (routeManager) {
+                routeManager.clearRoute();
+            }
+        }
+
+        async function collectBin(binId) {
+            if (!isAdmin) {
+                alert('Only admins can collect bins.');
+                return;
+            }
+
+            const confirmed = confirm('Mark this bin as collected and remove it from the network?');
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/bins/${binId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    throw new Error(errorBody.error || `Server responded with ${response.status}`);
+                }
+
+                alert('Bin collected successfully.');
+                await fetchBins();
+            } catch (error) {
+                console.error('Error collecting bin:', error);
+                alert(`Failed to collect bin. ${error.message || 'Please try again.'}`);
+            }
+        }
+
+        // Initialize charts
+        function initCharts() {
+            // Fill Prediction Chart
+            const fillCtx = document.getElementById('fillPredictionChart').getContext('2d');
+            fillPredictionChart = new Chart(fillCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 8
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: context => `${context.dataset.label}: ${context.parsed.y}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: value => `${value}%`
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Status Chart - 4-tier doughnut
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            statusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Low (0–32%)', 'Medium (33–65%)', 'High (66–89%)', 'Critical (90–100%)'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: [
+                            '#22c55e',  // green  - Low
+                            '#facc15',  // yellow - Medium
+                            '#f97316',  // orange - High
+                            '#dc2626'   // red    - Critical
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { usePointStyle: true, boxWidth: 10, padding: 14, font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.label}: ${ctx.parsed} bin${ctx.parsed !== 1 ? 's' : ''}`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Predict when bin will be full (mock function)
+        function getProjectedFillRate(bin) {
+            const fullness = bin.fill_level || 0;
+            let rate;
+
+            if (fullness >= 95) rate = 7;
+            else if (fullness >= 85) rate = 6;
+            else if (fullness >= 75) rate = 5;
+            else if (fullness >= 60) rate = 4;
+            else if (fullness >= 40) rate = 3;
+            else rate = 2;
+
+            const area = (bin.area || '').toLowerCase();
+            if (/(market|nagar|central|station|hub)/.test(area)) rate += 0.8;
+            if (/(park|residential|garden)/.test(area)) rate -= 0.4;
+
+            return Math.max(1.5, Math.min(rate, 7.5));
+        }
+
+        function generateForecastSeries(bin, hourMarks) {
+            const rate = getProjectedFillRate(bin);
+            return hourMarks.map((hour, idx) => {
+                if (idx === 0) return parseFloat(bin.fill_level.toFixed(1));
+                const projected = Math.min(100, bin.fill_level + rate * hour);
+                return parseFloat(projected.toFixed(1));
+            });
+        }
+
+        function formatDurationFromHours(hours) {
+            if (!isFinite(hours) || hours < 0) return 'now';
+            if (hours < 1) {
+                const minutes = Math.max(1, Math.round(hours * 60));
+                return `${minutes} min${minutes === 1 ? '' : 's'}`;
+            }
+            const totalMinutes = Math.round(hours * 60);
+            const days = Math.floor(totalMinutes / (60 * 24));
+            const remainingMinutes = totalMinutes - days * 24 * 60;
+            const hrs = Math.floor(remainingMinutes / 60);
+            const mins = remainingMinutes % 60;
+
+            const parts = [];
+            if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+            if (hrs) parts.push(`${hrs} hr${hrs === 1 ? '' : 's'}`);
+            if (!days && mins) parts.push(`${mins} min${mins === 1 ? '' : 's'}`);
+            return parts.join(' ') || 'now';
+        }
+
+        function predictFullTime(bin) {
+            if (!bin || typeof bin.fill_level !== 'number') return 'N/A';
+            if (bin.fill_level >= 100) return 'Overflowing';
+            const rate = getProjectedFillRate(bin);
+            const hoursToFull = (100 - bin.fill_level) / rate;
+            return `≈ ${formatDurationFromHours(hoursToFull)}`;
+        }
+
+        function updateNextOverflowBadge() {
+            const pill = document.getElementById('nextOverflowPill');
+            if (!pill) return;
+
+            if (!bins.length) {
+                pill.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg> Waiting for bin data...`;
+                return;
+            }
+
+            const projections = bins.map(bin => {
+                const rate = getProjectedFillRate(bin);
+                const hoursToOverflow = bin.fill_level >= 100 ? 0 : (100 - bin.fill_level) / rate;
+                return { bin, hours: hoursToOverflow };
+            }).filter(item => isFinite(item.hours) && item.hours >= 0);
+
+            if (!projections.length) {
+                pill.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> All bins nominal`;
+                return;
+            }
+
+            projections.sort((a, b) => a.hours - b.hours);
+            const next = projections[0];
+            const label = next.hours <= 0 ? 'Overflowing now' : `Next overflow in ${formatDurationFromHours(next.hours)}`;
+            pill.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg> ${next.bin.area || 'Bin'} · ${label}`;
+        }
+
+        // Update the UI with bin data
+        function updateUI() {
+            updateMap(); // Update the map when data changes
+            // Update stats using 4-tier thresholds
+            document.getElementById('totalBins').textContent = bins.length;
+            document.getElementById('fullBins').textContent = bins.filter(b => b.fill_level > 89).length;
+            document.getElementById('moderateBins').textContent = bins.filter(b => b.fill_level > 32 && b.fill_level <= 89).length;
+            document.getElementById('emptyBins').textContent = bins.filter(b => b.fill_level <= 32).length;
+
+            // Update bins list
+            const binsList = document.getElementById('binsList');
+            binsList.innerHTML = '';
+
+            bins.forEach(bin => {
+                const status = getBinStatus(bin.fill_level);
+                const statusColorMap = { 'Low': 'text-green-600', 'Medium': 'text-yellow-500', 'High': 'text-orange-500', 'Critical': 'text-red-600' };
+                const bgColorMap = { 'Low': 'bg-green-100', 'Medium': 'bg-yellow-100', 'High': 'bg-orange-100', 'Critical': 'bg-red-100' };
+                const barColorMap = { 'Low': 'bg-green-500', 'Medium': 'bg-yellow-400', 'High': 'bg-orange-500', 'Critical': 'bg-red-600' };
+                const statusClass = statusColorMap[status] || 'text-gray-600';
+                const bgClass = bgColorMap[status] || 'bg-gray-100';
+                const barClass = barColorMap[status] || 'bg-gray-400';
+                
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                const collectAction = isAdmin
+                    ? `<button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-1 transition" onclick="collectBin(${bin.id})">Collect Bin</button>`
+                    : '<span class="text-slate-400 text-xs">—</span>';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${bin.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${bin.area}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-1">
+                            <div class="h-2.5 rounded-full ${barClass}" style="width: ${bin.fill_level}%"></div>
+                        </div>
+                        <span class="text-sm font-medium ${statusClass}">${bin.fill_level}%</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass} ${bgClass}">
+                            ${status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">${predictFullTime(bin)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${collectAction}</td>
+                `;
+                binsList.appendChild(row);
+            });
+
+            // Update charts
+            updateCharts();
+        }
+
+        // Update charts with current data
+        function updateCharts() {
+            const hourStep = 2;
+            const horizonHours = 24;
+            const hourMarks = Array.from({length: Math.floor(horizonHours / hourStep) + 1}, (_, i) => i * hourStep);
+            const labelMarks = hourMarks.map(h => h === 0 ? 'Now' : `${h}h`);
+            const palette = ['#3b82f6', '#f97316', '#22c55e', '#8b5cf6', '#ec4899'];
+
+            fillPredictionChart.data.labels = labelMarks;
+            fillPredictionChart.data.datasets = [];
+
+            if (bins.length) {
+                const rankedBins = [...bins]
+                    .map(bin => ({
+                        bin,
+                        hours: bin.fill_level >= 100 ? 0 : (100 - bin.fill_level) / getProjectedFillRate(bin)
+                    }))
+                    .sort((a, b) => a.hours - b.hours)
+                    .slice(0, 3);
+
+                rankedBins.forEach(({ bin }, idx) => {
+                    fillPredictionChart.data.datasets.push({
+                        label: `${bin.area || 'Bin'} (${bin.fill_level}%)`,
+                        data: generateForecastSeries(bin, hourMarks),
+                        borderColor: palette[idx % palette.length],
+                        backgroundColor: palette[idx % palette.length] + '22',
+                        tension: 0.35,
+                        fill: false,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        borderWidth: 2
+                    });
+                });
+            }
+
+            fillPredictionChart.update();
+
+            // Update status doughnut chart with 4-tier labels
+            statusChart.data.labels = ['Low (0–32%)', 'Medium (33–65%)', 'High (66–89%)', 'Critical (90–100%)'];
+            statusChart.data.datasets[0].data = [
+                bins.filter(b => b.fill_level <= 32).length,
+                bins.filter(b => b.fill_level > 32 && b.fill_level <= 65).length,
+                bins.filter(b => b.fill_level > 65 && b.fill_level <= 89).length,
+                bins.filter(b => b.fill_level > 89).length
+            ];
+            statusChart.data.datasets[0].backgroundColor = [
+                '#22c55e',  // green  - Low
+                '#facc15',  // yellow - Medium
+                '#f97316',  // orange - High
+                '#dc2626'   // red    - Critical
+            ];
+            statusChart.update();
+
+            updateNextOverflowBadge();
+        }
+
+        // Fetch bins from API
+        async function fetchBins() {
+            try {
+                const response = await fetch(`${API_URL}/api/bins`);
+                if (!response.ok) throw new Error('Failed to fetch bins');
+                bins = await response.json();
+                updateUI();
+            } catch (error) {
+                console.error('Error fetching bins:', error);
+                // Fallback to mock data if API fails
+                bins = [
+                    { id: 1, location_lat: 13.0827, location_lng: 80.2707, area: 'T. Nagar', fill_level: 35 },
+                    { id: 2, location_lat: 13.0674, location_lng: 80.2376, area: 'Mylapore', fill_level: 85 },
+                    { id: 3, location_lat: 13.0398, location_lng: 80.2401, area: 'Adyar', fill_level: 92 },
+                    { id: 4, location_lat: 13.0604, location_lng: 80.2496, area: 'Nungambakkam', fill_level: 45 },
+                    { id: 5, location_lat: 13.0900, location_lng: 80.2100, area: 'Anna Nagar', fill_level: 75 }
+                ];
+                updateUI();
+            }
+        }
+
+        // Initialize the dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            initCharts();
+            fetchBins();
+            
+            // Check if user was previously logged in
+            if (localStorage.getItem('isLoggedIn') === 'true') {
+                isAdmin = true;
+                document.body.classList.add('admin');
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                usernameSpan.textContent = localStorage.getItem('savedAdminUser') || 'admin';
+                rememberMeCheckbox.checked = localStorage.getItem('rememberAdmin') === 'true';
+            }
+            
+            // Simulate real-time updates (every 30 seconds)
+            setInterval(fetchBins, 30000);
+        });
+    </script>
+</body>
+</html>
