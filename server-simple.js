@@ -217,7 +217,7 @@ const server = http.createServer((req, res) => {
 
     // Serve static files for non-API requests
     const parsedUrl = url.parse(req.url, true);
-    let pathname = path.join(__dirname, parsedUrl.pathname === '/' ? '/dashboard-new.html' : parsedUrl.pathname);
+    let pathname = path.join(__dirname, parsedUrl.pathname === '/' ? '/gov-dashboard.html' : parsedUrl.pathname);
     const extname = String(path.extname(pathname)).toLowerCase();
     
     // MIME types mapping
