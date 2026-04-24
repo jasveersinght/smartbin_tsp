@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Waste Management System – Municipal Dashboard</title>
+  <meta name="description" content="Official municipal waste management monitoring and route planning system for Chennai Metropolitan Area." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 14px; }
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: #f3f4f6;
+      color: #1f2937;
+      min-height: 100vh;
+    }
+
+    /* ── Gov Header ── */
+    .gov-header {
+      background: #1e3a8a;
+      color: #fff;
+      padding: 0 32px;
+      border-bottom: 4px solid #16a34a;
+    }
+    .gov-header-inner {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+    }
+    .gov-title { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+    .gov-subtitle { font-size: 0.78rem; color: #bfdbfe; margin-top: 2px; font-weight: 400; }
+    .gov-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #16a34a; color: #fff;
+      font-size: 0.72rem; font-weight: 600; padding: 4px 12px;
+      border-radius: 3px; letter-spacing: 0.05em;
+    }
+    .gov-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #86efac; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Sub Nav ── */
+    .gov-nav {
+      background: #1e40af;
+      border-bottom: 1px solid #1e3a8a;
+    }
+    .gov-nav-inner {
+      max-width: 1600px; margin: 0 auto;
+      display: flex; align-items: center; gap: 0;
+    }
+    .gov-nav a {
+      color: #bfdbfe; font-size: 0.78rem; font-weight: 500;
+      padding: 9px 18px; text-decoration: none; display: block;
+      border-right: 1px solid rgba(255,255,255,0.1);
+      transition: background 0.15s;
+    }
+    .gov-nav a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .gov-nav a.active { background: rgba(255,255,255,0.15); color: #fff; border-bottom: 2px solid #86efac; }
+
+    /* ── Main Wrapper ── */
+    .page-wrap { max-width: 1600px; margin: 0 auto; padding: 20px 24px 40px; }
+
+    /* ── Section Title ── */
+    .section-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #6b7280;
+      margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+    }
+    .section-label::after { content:''; flex:1; height:1px; background:#e5e7eb; }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+    }
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-header-title {
+      font-size: 0.82rem; font-weight: 600; color: #1e3a8a;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-body { padding: 16px; }
+
+    /* ── Charts Row ── */
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .chart-wrap { height: 220px; position: relative; }
+
+    /* ── Split Row ── */
+    .split-row { display: grid; grid-template-columns: 60fr 40fr; gap: 16px; margin-bottom: 16px; }
+
+    /* ── Map ── */
+    #map { height: 420px; width: 100%; border-radius: 0 0 5px 5px; }
+    .leaflet-container { font-family: 'Inter', sans-serif; }
+
+    /* ── Map Legend ── */
+    .map-legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #374151; }
+    .legend-dot { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.12); flex-shrink: 0; }
+
+    /* ── Control Panel ── */
+    .cp-section { border-bottom: 1px solid #e5e7eb; padding: 14px 16px; }
+    .cp-section:last-child { border-bottom: none; }
+    .cp-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin-bottom: 10px; }
+
+    /* ── Primary Button ── */
+    .btn-primary {
+      background: #16a34a; color: #fff;
+      border: none; font-family: inherit;
+      font-size: 0.82rem; font-weight: 600;
+      padding: 10px 16px; border-radius: 4px;
+      cursor: pointer; width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #15803d; }
+
+    /* ── Secondary Button ── */
+    .btn-secondary {
+      background: #fff; color: #1e3a8a;
+      border: 1px solid #1e3a8a; font-family: inherit;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 8px 14px; border-radius: 4px;
+      cursor: pointer; flex: 1;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { background: #eff6ff; }
+    .btn-danger {
+      background: #fff; color: #b91c1c;
+      border: 1px solid #fca5a5; font-family: inherit;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 8px 14px; border-radius: 4px;
+      cursor: pointer; flex: 1;
+      transition: all 0.15s;
+    }
+    .btn-danger:hover { background: #fef2f2; }
+
+    /* ── Radio Group ── */
+    .radio-group { display: flex; flex-direction: column; gap: 7px; }
+    .radio-item { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .radio-item input[type=radio] { accent-color: #1e3a8a; width: 14px; height: 14px; cursor: pointer; }
+    .radio-item label { font-size: 0.8rem; color: #374151; cursor: pointer; }
+    .radio-item label span { color: #6b7280; font-size: 0.72rem; }
+
+    /* ── Slider ── */
+    .slider-wrap { margin-top: 4px; }
+    .slider-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .slider-label { font-size: 0.78rem; color: #374151; }
+    .slider-val { font-size: 0.78rem; font-weight: 700; color: #1e3a8a; background: #eff6ff; padding: 2px 8px; border-radius: 3px; }
+    input[type=range] { width: 100%; accent-color: #1e3a8a; height: 4px; }
+    .slider-ticks { display: flex; justify-content: space-between; font-size: 0.65rem; color: #9ca3af; margin-top: 2px; }
+
+    /* ── Checkbox ── */
+    .checkbox-item { display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer; }
+    .checkbox-item input[type=checkbox] { accent-color: #1e3a8a; width: 14px; height: 14px; cursor: pointer; }
+    .checkbox-item label { font-size: 0.78rem; color: #374151; cursor: pointer; }
+
+    /* ── Summary Box ── */
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .summary-cell {
+      border: 1px solid #e5e7eb; border-radius: 4px;
+      padding: 10px; text-align: center; background: #f9fafb;
+    }
+    .summary-cell-val { font-size: 1.3rem; font-weight: 700; color: #1e3a8a; }
+    .summary-cell-val.green { color: #16a34a; }
+    .summary-cell-lbl { font-size: 0.65rem; color: #6b7280; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    thead tr { background: #1e3a8a; color: #fff; }
+    thead th { padding: 10px 14px; font-weight: 600; text-align: left; white-space: nowrap; letter-spacing: 0.03em; }
+    tbody tr { border-bottom: 1px solid #e5e7eb; }
+    tbody tr:nth-child(even) { background: #f9fafb; }
+    tbody tr:hover { background: #eff6ff; }
+    tbody td { padding: 9px 14px; vertical-align: middle; white-space: nowrap; }
+
+    /* ── Fill bar in table ── */
+    .fill-track { background: #e5e7eb; border-radius: 3px; height: 7px; width: 100px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+    .fill-bar { height: 7px; border-radius: 3px; }
+
+    /* ── Status badge ── */
+    .badge {
+      display: inline-block; padding: 2px 9px;
+      border-radius: 3px; font-size: 0.68rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .badge-low { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-medium { background: #fef9c3; color: #a16207; border: 1px solid #fde68a; }
+    .badge-high { background: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+    .badge-critical { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+    /* ── Collect Bin button ── */
+    .btn-collect {
+      background: transparent; border: 1px solid #1e3a8a; color: #1e3a8a;
+      padding: 4px 10px; border-radius: 3px; font-size: 0.7rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .btn-collect:hover { background: #1e3a8a; color: #fff; }
+    .btn-collect.added { background: #16a34a; color: #fff; border-color: #16a34a; cursor: default; }
+
+    /* ── Loading overlay ── */
+    #loadingBar {
+      display: none; position: fixed; top: 0; left: 0; right: 0;
+      height: 3px; background: linear-gradient(90deg, #16a34a, #1e3a8a, #16a34a);
+      background-size: 200% 100%;
+      animation: loading 1.2s linear infinite;
+      z-index: 9999;
+    }
+    @keyframes loading { 0%{background-position:0%} 100%{background-position:200%} }
+
+    /* ── Alert toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      display: none; align-items: center; gap: 10px;
+      background: #1e3a8a; color: #fff;
+      padding: 11px 18px; border-radius: 4px;
+      font-size: 0.8rem; font-weight: 500;
+      border-left: 4px solid #16a34a;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* ── Info bar ── */
+    .info-bar {
+      background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 4px; padding: 8px 12px;
+      font-size: 0.75rem; color: #1e40af;
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f3f4f6; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    /* ── Bin Info Popup ── */
+    .bin-popup-card { font-family: 'Inter', Arial, sans-serif; width: 260px; }
+    .bin-popup-header {
+      background: #1e3a8a; color: #fff;
+      padding: 10px 14px; margin: -13px -20px 12px;
+      border-radius: 4px 4px 0 0; display: flex; align-items: center; justify-content: space-between;
+    }
+    .bin-popup-header h3 { font-size: 0.88rem; font-weight: 700; margin: 0; }
+    .bin-popup-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .bin-popup-stat {
+      border-radius: 4px; padding: 8px 10px; text-align: center;
+    }
+    .bin-popup-stat-val { font-size: 1.1rem; font-weight: 800; }
+    .bin-popup-stat-lbl { font-size: 0.62rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 1px; }
+    .bin-popup-bar-wrap { background: #f3f4f6; border-radius: 4px; height: 8px; margin-bottom: 10px; overflow: hidden; }
+    .bin-popup-bar { height: 8px; border-radius: 4px; transition: width 0.5s; }
+    .bin-popup-actions { display: flex; gap: 6px; }
+    .bin-popup-btn {
+      flex: 1; padding: 6px 4px; border-radius: 3px; font-size: 0.7rem;
+      font-weight: 600; cursor: pointer; border: 1px solid; font-family: inherit;
+      transition: all 0.15s; text-align: center;
+    }
+    .bin-popup-btn-add { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+    .bin-popup-btn-add:hover { background: #1e40af; }
+    .bin-popup-btn-added { background: #16a34a; color: #fff; border-color: #16a34a; cursor: default; }
+    .bin-popup-btn-remove { background: #fff; color: #b91c1c; border-color: #fca5a5; }
+    .bin-popup-btn-remove:hover { background: #fef2f2; }
+
+    /* ── Simulate truck ── */
+    .btn-simulate {
+      background: #0369a1; color: #fff;
+      border: none; font-family: inherit;
+      font-size: 0.78rem; font-weight: 600;
+      padding: 8px 14px; border-radius: 4px;
+      cursor: pointer; width: 100%; margin-top: 6px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background 0.15s;
+    }
+    .btn-simulate:hover { background: #0284c7; }
+    @keyframes truckBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    .truck-animated { display:inline-block; animation: truckBounce 0.5s infinite; }
+  </style>
+</head>
+<body>
+
+<!-- Progress bar -->
+<div id="loadingBar"></div>
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ════ HEADER ════ -->
+<header class="gov-header">
+  <div class="gov-header-inner">
+    <div>
+      <div class="gov-title">🏛️ Smart Waste Management System</div>
+      <div class="gov-subtitle">Greater Chennai Corporation &nbsp;·&nbsp; Department of Solid Waste Management &nbsp;·&nbsp; Municipal Operations</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="text-align:right;font-size:0.72rem;color:#93c5fd">
+        <div id="clockDisplay"></div>
+        <div>Chennai, Tamil Nadu</div>
+      </div>
+      <div class="gov-badge"><span class="gov-badge-dot"></span> LIVE OPERATIONS</div>
+    </div>
+  </div>
+</header>
+<nav class="gov-nav">
+  <div class="gov-nav-inner">
+    <a href="#" class="active">Dashboard</a>
+    <a href="index.html">Bin Map</a>
+    <a href="dashboard-new.html">Analytics</a>
+    <a href="smart-dashboard.html">Smart Control</a>
+    <a href="login.html">Admin Login</a>
+  </div>
+</nav>
+
+<!-- ════ PAGE CONTENT ════ -->
+<div class="page-wrap">
+
+  <!-- ── Info bar ── -->
+  <div class="info-bar">
+    ℹ️ This dashboard supports real-time bin monitoring, TSP-based route optimization, and predictive overflow alerts for field operators.
+  </div>
+
+  <!-- ════ SECTION 1: Analytics Charts ════ -->
+  <div class="section-label">Analytics Overview</div>
+  <div class="charts-row">
+
+    <!-- Fill Prediction Line Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-title">📈 Bin Fill Level Prediction (24h)</div>
+        <span style="font-size:0.68rem;color:#6b7280">Top 3 at-risk bins</span>
+      </div>
+      <div class="card-body" style="padding:12px 16px">
+        <div class="chart-wrap"><canvas id="fillChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Bins by Status Donut -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-title">🍩 Bins by Status</div>
+        <span style="font-size:0.68rem;color:#6b7280">Live snapshot</span>
+      </div>
+      <div class="card-body" style="padding:12px 16px;display:flex;align-items:center;gap:24px">
+        <div class="chart-wrap" style="flex:1"><canvas id="statusChart"></canvas></div>
+        <div id="donutLegend" style="flex:0 0 130px;font-size:0.72rem;display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════ SECTION 2: Map + Control Panel ════ -->
+  <div class="section-label">Monitoring &amp; Route Planning</div>
+  <div class="split-row">
+
+    <!-- ── Left: Map ── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-title">🗺️ Live Bin Location Map &nbsp;·&nbsp; Chennai</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="refreshBins()" class="btn-secondary" style="padding:4px 10px;font-size:0.7rem">⟳ Refresh</button>
+        </div>
+      </div>
+      <div class="map-legend">
+        <div class="legend-item" id="leg-low"></div>
+        <div class="legend-item" id="leg-med"></div>
+        <div class="legend-item" id="leg-high"></div>
+        <div class="legend-item" id="leg-crit"></div>
+        <div class="legend-item"><div class="legend-dot" style="background:#1e3a8a"></div> 🏭 Depot</div>
+        <div class="legend-item"><div style="width:24px;height:3px;background:#2563eb;display:inline-block;vertical-align:middle"></div>&nbsp; Optimized Route</div>
+      </div>
+
+      <div id="map"></div>
+    </div>
+
+    <!-- ── Right: Control Panel ── -->
+    <div class="card" style="display:flex;flex-direction:column">
+
+      <div class="card-header">
+        <div class="card-header-title">⚙️ Waste Collection Control Panel</div>
+      </div>
+
+      <!-- A. Primary Button -->
+      <div class="cp-section">
+        <button class="btn-primary" id="collectBtn" onclick="startCollection()">
+          🚛 Collect Bins ≥ <span id="collectBtnThreshold">65</span>%
+        </button>
+      </div>
+
+      <!-- B. Mode Selection -->
+      <div class="cp-section">
+        <div class="cp-label">Collection Mode</div>
+        <div class="radio-group">
+          <div class="radio-item">
+            <input type="radio" name="mode" id="modeNormal" value="50" onchange="onModeChange(50)">
+            <label for="modeNormal">Normal Mode &nbsp;<span>(50%+ bins)</span></label>
+          </div>
+          <div class="radio-item">
+            <input type="radio" name="mode" id="modeSmart" value="65" onchange="onModeChange(65)" checked>
+            <label for="modeSmart">Smart Mode &nbsp;<span>(65%+ bins) [Default]</span></label>
+          </div>
+          <div class="radio-item">
+            <input type="radio" name="mode" id="modeEmergency" value="85" onchange="onModeChange(85)">
+            <label for="modeEmergency">Emergency Mode &nbsp;<span>(85%+ critical)</span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- C. Filters -->
+      <div class="cp-section">
+        <div class="cp-label">Filters</div>
+        <div class="slider-wrap">
+          <div class="slider-row">
+            <span class="slider-label">Minimum Fill Level</span>
+            <span class="slider-val" id="sliderDisplay">65%</span>
+          </div>
+          <input type="range" id="fillSlider" min="0" max="100" value="65" oninput="onSliderChange(this.value)" />
+          <div class="slider-ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="criticalOnly" onchange="renderTable()" />
+          <label for="criticalOnly">Show Only Critical Bins (85%+)</label>
+        </div>
+      </div>
+
+      <!-- D. Route Summary -->
+      <div class="cp-section">
+        <div class="cp-label">Route Summary</div>
+        <div class="summary-grid">
+          <div class="summary-cell">
+            <div class="summary-cell-val" id="sumDist">—</div>
+            <div class="summary-cell-lbl">Distance (km)</div>
+          </div>
+          <div class="summary-cell">
+            <div class="summary-cell-val" id="sumTime">—</div>
+            <div class="summary-cell-lbl">Time (min)</div>
+          </div>
+          <div class="summary-cell">
+            <div class="summary-cell-val" id="sumBins">0</div>
+            <div class="summary-cell-lbl">Bins Selected</div>
+          </div>
+          <div class="summary-cell">
+            <div class="summary-cell-val green" id="sumFuel">—</div>
+            <div class="summary-cell-lbl">Fuel Saved %</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- E. Actions -->
+      <div class="cp-section">
+        <div class="cp-label">Actions</div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <button class="btn-secondary" onclick="runOptimize()">🧭 Optimize Route (TSP)</button>
+          <button class="btn-danger" onclick="clearRoute()">✕ Clear Route</button>
+        </div>
+        <button class="btn-simulate" id="simulateBtn" onclick="simulateTruck()">
+          <span class="truck-animated">🚛</span> Simulate Truck Route
+        </button>
+      </div>
+
+      <!-- Selected bins quick count -->
+      <div class="cp-section" style="flex:1">
+        <div class="cp-label">Selected Bins</div>
+        <div id="selectedList" style="font-size:0.75rem;color:#374151;line-height:1.8;max-height:120px;overflow-y:auto">
+          <em style="color:#9ca3af">No bins selected. Click "Collect Bins ≥ 65%" to begin.</em>
+        </div>
+      </div>
+
+    </div><!-- end control panel -->
+
+  </div><!-- end split row -->
+
+  <!-- ════ SECTION 3: Bins Table ════ -->
+  <div class="section-label">All Bin Records</div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-title">📋 Bin Inventory — Chennai Metropolitan Area</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="totalBinsBadge" style="font-size:0.72rem;background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe;padding:3px 10px;border-radius:3px;font-weight:600"></span>
+        <input id="tableSearch" type="text" placeholder="Search area..." oninput="renderTable()" style="border:1px solid #d1d5db;border-radius:4px;padding:5px 10px;font-size:0.75rem;font-family:inherit;outline:none;width:160px" />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Bin ID</th>
+            <th>Location / Area</th>
+            <th>Fill Level</th>
+            <th>Status</th>
+            <th>Predicted Full In</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="binsTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- end page-wrap -->
+
+<script>
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+const API = 'http://localhost:3000';
+const DEPOT = { location_lat: 13.0827, location_lng: 80.2707, area: 'Central Depot' };
+let allBins = [];
+let selectedBinIds = new Set();
+let activeThreshold = 65;
+let routePolyline = null;
+let routeGlow = null;
+let routeNumMarkers = [];
+let binMarkers = {};
+let fillChartInst = null;
+let statusChartInst = null;
+let lastRoute = [];          // cached for truck simulation
+let truckMarker = null;      // animated truck
+let truckTimer = null;       // simulation interval
+
+// ──────────────────────────────────────────────
+// CLOCK
+// ──────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clockDisplay').textContent =
+    now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) +
+    '  ' + now.toLocaleTimeString('en-IN');
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ──────────────────────────────────────────────
+// MAP INIT
+// ──────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([13.0567, 80.2300], 11);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+// Depot
+const depotIcon = L.divIcon({
+  className:'',
+  html:`<div style="background:#1e3a8a;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #93c5fd;font-size:14px;">🏭</div>`,
+  iconSize:[30,30],iconAnchor:[15,15]
+});
+L.marker([DEPOT.location_lat, DEPOT.location_lng], { icon: depotIcon })
+  .addTo(map).bindPopup('<strong>Central Depot</strong><br>Greater Chennai Corporation<br>Waste Management HQ');
+
+// ──────────────────────────────────────────────
+// HELPERS
+// ──────────────────────────────────────────────
+function getBinColor(f) {
+  if (f <= 40) return '#22c55e';
+  if (f <= 65) return '#facc15';
+  if (f <= 85) return '#f97316';
+  return '#dc2626';
+}
+function getBinStatus(f) {
+  if (f <= 40) return { text:'Low',    cls:'badge-low' };
+  if (f <= 65) return { text:'Medium', cls:'badge-medium' };
+  if (f <= 85) return { text:'High',   cls:'badge-high' };
+  return { text:'Critical', cls:'badge-critical' };
+}
+function haversine(a, b, c, d) {
+  const R=6371, dL=(c-a)*Math.PI/180, dG=(d-b)*Math.PI/180;
+  const x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function predictFullTime(bin) {
+  if (bin.fill_level >= 100) return 'Overflowing';
+  const rates = { critical: 7.5, high: 5.5, medium: 3.5, low: 2 };
+  const rate = bin.fill_level > 85 ? rates.critical : bin.fill_level > 65 ? rates.high : bin.fill_level > 40 ? rates.medium : rates.low;
+  const hrs = (100 - bin.fill_level) / rate;
+  if (hrs < 1) return `~${Math.round(hrs*60)} min`;
+  if (hrs < 24) return `~${hrs.toFixed(1)} hrs`;
+  return `~${Math.round(hrs/24)} day(s)`;
+}
+
+// ──────────────────────────────────────────────
+// TSP NEAREST NEIGHBOR (Round-Trip)
+// ──────────────────────────────────────────────
+function runTSP(bins) {
+  if (!bins.length) return { route: [], totalDistance: 0 };
+  const unvisited = [...bins];
+  let cur = DEPOT;
+  const route = [cur];
+  let dist = 0;
+  while (unvisited.length) {
+    let ni = 0, nd = Infinity;
+    unvisited.forEach((b,i) => {
+      const d = haversine(cur.location_lat, cur.location_lng, b.location_lat, b.location_lng);
+      if (d < nd) { nd = d; ni = i; }
+    });
+    dist += nd;
+    cur = unvisited.splice(ni, 1)[0];
+    route.push(cur);
+  }
+  dist += haversine(cur.location_lat, cur.location_lng, DEPOT.location_lat, DEPOT.location_lng);
+  route.push(DEPOT);
+  return { route, totalDistance: dist };
+}
+
+// ──────────────────────────────────────────────
+// FETCH BINS
+// ──────────────────────────────────────────────
+async function fetchBins() {
+  try {
+    const res = await fetch(`${API}/api/bins`);
+    if (!res.ok) throw new Error();
+    allBins = await res.json();
+  } catch {
+    allBins = [
+      {id:1,location_lat:13.0423,location_lng:80.2337,area:'T. Nagar',fill_level:35},
+      {id:2,location_lat:13.0338,location_lng:80.2667,area:'Mylapore',fill_level:82},
+      {id:3,location_lat:13.0007,location_lng:80.2550,area:'Adyar',fill_level:91},
+      {id:4,location_lat:13.0878,location_lng:80.2120,area:'Anna Nagar',fill_level:68},
+      {id:5,location_lat:13.0560,location_lng:80.2496,area:'Nungambakkam',fill_level:54},
+      {id:6,location_lat:12.9801,location_lng:80.2192,area:'Velachery',fill_level:77},
+      {id:7,location_lat:12.9983,location_lng:80.2707,area:'Besant Nagar',fill_level:63},
+      {id:8,location_lat:13.0102,location_lng:80.2209,area:'Saidapet',fill_level:48},
+      {id:9,location_lat:12.9240,location_lng:80.1275,area:'Tambaram',fill_level:72},
+      {id:10,location_lat:13.1143,location_lng:80.1548,area:'Ambattur',fill_level:58}
+    ];
+  }
+  renderMapMarkers();
+  renderTable();
+  updateCharts();
+  document.getElementById('totalBinsBadge').textContent = `${allBins.length} Bins Total`;
+}
+
+async function refreshBins() { showLoading(true); await fetchBins(); showLoading(false); showToast('Data refreshed.'); }
+
+// ──────────────────────────────────────────────
+// MAP MARKERS — SVG Dustbin Icons
+// ──────────────────────────────────────────────
+function makeBinSVG(color, fillPct, selected) {
+  const selRing = selected
+    ? `filter:drop-shadow(0 0 6px ${color}) drop-shadow(0 0 2px rgba(0,0,0,0.5));`
+    : `filter:drop-shadow(0 4px 5px rgba(0,0,0,0.4));`;
+  const badge = selected
+    ? `<circle cx="36" cy="6" r="6" fill="#1e3a8a" stroke="#fff" stroke-width="1.5"/><text x="36" y="8.5" text-anchor="middle" font-size="8" font-weight="800" fill="#fff" style="font-family:sans-serif">✓</text>`
+    : '';
+
+  return `
+  <svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 40 52" style="${selRing}">
+    <!-- PEDAL BASE -->
+    <path d="M 12 47 L 28 47 L 29 50 L 11 50 Z" fill="${color}" />
+    <path d="M 16 45 L 24 45 L 25 50 L 15 50 Z" fill="black" opacity="0.25" />
+    <path d="M 17 48 L 23 48 L 23 50 L 17 50 Z" fill="${color}" opacity="0.9" />
+
+    <!-- BIN BODY -->
+    <path d="M 8 13 L 32 13 L 28 47 L 12 47 Z" fill="${color}" />
+    <!-- Dynamic Shading / 3D Effect like ref image -->
+    <path d="M 24 13 L 32 13 L 28 47 L 26 47 Q 28 30 24 13 Z" fill="black" opacity="0.15" />
+    <path d="M 8 13 L 20 13 Q 22 25 20 40 L 14 47 L 12 47 Z" fill="white" opacity="0.12" />
+
+    <!-- RECYCLE LOGO -->
+    <g transform="translate(10.5, 20) scale(0.05)" fill="white" opacity="0.95">
+      <path d="M228.6,183.4l-20.6-35.6h41.2c16.1,0,30.9-8.5,39-22.5l5.1-8.9h44.1L277,211c-11.8,20.4-33.8,33-57.4,33h-25l45.7,79.1l80.5-139.5H228.6z"/>
+      <path d="M172,306.9L126.3,228c-8.1-14-8.1-31,0-45l5.1-8.9l-38.2-22.1L33,256.4c-11.8,20.4-11.8,45.7,0,66.1l12.5,21.7l133.2-0.1L172,306.9z"/>
+      <path d="M369,256.4l-60.1-104.3c-11.8-20.4-33.8-33-57.4-33H226.4L180.7,40l-80.5,139.5h92.2l-20.6,35.6c-8.1,14-8.1,31,0,45l5.1,8.9l38.2,22.1L275.2,187C287,166.5,287,141.2,275.2,120.8L262.7,99.1h125.1L369,256.4z"/>
+    </g>
+
+    <!-- BIN LID -->
+    <path d="M 4 10 C 6 2, 34 2, 36 10 L 38 13 L 2 13 Z" fill="${color}" />
+    <path d="M 4 10 C 6 2, 34 2, 36 10 L 38 13 L 2 13 Z" fill="white" opacity="0.1" />
+    <path d="M 2 11 L 38 11 L 38 13 L 2 13 Z" fill="black" opacity="0.15" />
+    <path d="M 2 13 C 5 15, 35 15, 38 13 L 38 14 C 35 16, 5 16, 2 14 Z" fill="black" opacity="0.25" />
+    <path d="M 12 5 L 8 10 L 10 11 L 15 6 Z" fill="black" opacity="0.15" />
+    <path d="M 28 5 L 32 10 L 30 11 L 25 6 Z" fill="black" opacity="0.15" />
+
+    ${badge}
+  </svg>`;
+}
+
+function initLegend() {
+  document.getElementById('leg-low').innerHTML = makeBinSVG('#22c55e', 0, false).replace('width="34" height="44"', 'width="13" height="17"') + ' <span style="margin-left:4px">0–40% Low</span>';
+  document.getElementById('leg-med').innerHTML = makeBinSVG('#facc15', 0, false).replace('width="34" height="44"', 'width="13" height="17"') + ' <span style="margin-left:4px">40–65% Medium</span>';
+  document.getElementById('leg-high').innerHTML = makeBinSVG('#f97316', 0, false).replace('width="34" height="44"', 'width="13" height="17"') + ' <span style="margin-left:4px">65–85% High</span>';
+  document.getElementById('leg-crit').innerHTML = makeBinSVG('#dc2626', 0, false).replace('width="34" height="44"', 'width="13" height="17"') + ' <span style="margin-left:4px">85%+ Critical</span>';
+}
+initLegend();
+
+function renderMapMarkers() {
+  Object.values(binMarkers).forEach(m => map.removeLayer(m));
+  binMarkers = {};
+  allBins.forEach(bin => {
+    const col = getBinColor(bin.fill_level);
+    const sel = selectedBinIds.has(bin.id);
+    const icon = L.divIcon({
+      className: '',
+      html: makeBinSVG(col, bin.fill_level, sel),
+      iconSize: [34, 44],
+      iconAnchor: [17, 44],   // anchor at base (wheels)
+      popupAnchor: [0, -44]
+    });
+    const m = L.marker([bin.location_lat, bin.location_lng], { icon }).addTo(map);
+    // Clicking marker opens the rich info popup
+    m.on('click', () => {
+      m.bindPopup(buildPopup(bin), { maxWidth: 300 }).openPopup();
+    });
+    binMarkers[bin.id] = m;
+  });
+}
+
+function buildPopup(bin) {
+  const s = getBinStatus(bin.fill_level);
+  const col = getBinColor(bin.fill_level);
+  const depotDist = haversine(DEPOT.location_lat, DEPOT.location_lng, bin.location_lat, bin.location_lng);
+  const travelMins = Math.round(depotDist / 35 * 60);
+  const now = new Date();
+  const arrival = new Date(now.getTime() + travelMins * 60000);
+  const arrStr = arrival.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+  const filled = bin.fill_level;
+  const sel = selectedBinIds.has(bin.id);
+
+  return `<div class="bin-popup-card">
+    <div class="bin-popup-header">
+      <h3>🗑️ ${bin.area}</h3>
+      <span style="font-size:0.7rem;background:${col};padding:2px 8px;border-radius:3px;font-weight:700">${s.text}</span>
+    </div>
+    <div class="bin-popup-stats">
+      <div class="bin-popup-stat" style="background:#eff6ff">
+        <div class="bin-popup-stat-val" style="color:#1e3a8a">${depotDist.toFixed(1)} km</div>
+        <div class="bin-popup-stat-lbl">Distance from Depot</div>
+      </div>
+      <div class="bin-popup-stat" style="background:#f0fdf4">
+        <div class="bin-popup-stat-val" style="color:#16a34a">${travelMins} min</div>
+        <div class="bin-popup-stat-lbl">Travel Duration</div>
+      </div>
+      <div class="bin-popup-stat" style="background:#faf5ff">
+        <div class="bin-popup-stat-val" style="color:#7c3aed;font-size:0.9rem">${arrStr}</div>
+        <div class="bin-popup-stat-lbl">Est. Arrival</div>
+      </div>
+      <div class="bin-popup-stat" style="background:#fefce8">
+        <div class="bin-popup-stat-val" style="color:#a16207;font-size:0.9rem">${predictFullTime(bin)}</div>
+        <div class="bin-popup-stat-lbl">Full In</div>
+      </div>
+    </div>
+    <div style="font-size:0.72rem;color:#6b7280;margin-bottom:4px;display:flex;justify-content:space-between">
+      <span>Fill Level</span><span style="font-weight:700;color:${col}">${filled}%</span>
+    </div>
+    <div class="bin-popup-bar-wrap">
+      <div class="bin-popup-bar" style="background:${col};width:${filled}%"></div>
+    </div>
+    <div style="font-size:0.72rem;color:#6b7280;margin-bottom:8px">
+      Bin ID: <strong>#${bin.id}</strong> &nbsp;·&nbsp;
+      Coords: <strong>${bin.location_lat.toFixed(4)}, ${bin.location_lng.toFixed(4)}</strong>
+    </div>
+    <div class="bin-popup-actions">
+      <button class="bin-popup-btn ${sel ? 'bin-popup-btn-added' : 'bin-popup-btn-add'}"
+        onclick="toggleBinFromPopup(${bin.id})">
+        ${sel ? '✓ In Route' : '+ Add to Route'}
+      </button>
+      ${sel ? `<button class="bin-popup-btn bin-popup-btn-remove" onclick="toggleBinFromPopup(${bin.id})">✕ Remove</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ──────────────────────────────────────────────
+// ROUTE
+// ──────────────────────────────────────────────
+function clearRoute() {
+  if (routePolyline) { map.removeLayer(routePolyline); routePolyline = null; }
+  if (routeGlow) { map.removeLayer(routeGlow); routeGlow = null; }
+  routeNumMarkers.forEach(m => map.removeLayer(m));
+  routeNumMarkers = [];
+  selectedBinIds.clear();
+  renderMapMarkers();
+  updateSummary([], 0);
+  renderSelectedList();
+  showToast('Route cleared.');
+}
+
+function runOptimize() {
+  const selected = allBins.filter(b => selectedBinIds.has(b.id));
+  if (!selected.length) { showToast('No bins selected. Set threshold and click Collect Bins.', 'warn'); return; }
+  showLoading(true);
+  setTimeout(() => {
+    const { route, totalDistance } = runTSP(selected);
+    drawRoute(route, totalDistance, selected.length);
+    renderMapMarkers();
+    showLoading(false);
+    showToast(`Route optimized — ${selected.length} bins, ${totalDistance.toFixed(1)} km`);
+  }, 800);
+}
+
+function drawRoute(route, dist, binCount) {
+  if (routePolyline) map.removeLayer(routePolyline);
+  if (routeGlow) map.removeLayer(routeGlow);
+  routeNumMarkers.forEach(m => map.removeLayer(m));
+  routeNumMarkers = [];
+
+  const coords = route.map(p => [p.location_lat, p.location_lng]);
+
+  routeGlow = L.polyline(coords, { color:'#2563eb', weight: 9, opacity: 0.12 }).addTo(map);
+  routePolyline = L.polyline(coords, { color:'#2563eb', weight: 3.5, opacity: 0.9, dashArray:'8 4' }).addTo(map);
+
+  route.forEach((p, i) => {
+    if (i === 0 || i === route.length - 1) return;
+    const m = L.marker([p.location_lat, p.location_lng], {
+      icon: L.divIcon({
+        className:'',
+        html:`<div style="background:#1e3a8a;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;border:1.5px solid #93c5fd;">${i}</div>`,
+        iconSize:[18,18],iconAnchor:[9,9]
+      })
+    }).addTo(map);
+    routeNumMarkers.push(m);
+  });
+
+  map.fitBounds(coords, { padding: [30, 30] });
+  lastRoute = route; // cache for simulation
+  updateSummary(route, dist, binCount);
+}
+
+function updateSummary(route, dist, binCount) {
+  const km = dist > 0 ? dist.toFixed(1) : '—';
+  const mins = dist > 0 ? Math.round(dist / 35 * 60) : '—';
+  const fuel = dist > 0 ? Math.max(10, Math.round(100 - (dist / ((binCount||1) * 8)) * 80)) + '%' : '—';
+  document.getElementById('sumDist').textContent = km;
+  document.getElementById('sumTime').textContent = mins;
+  document.getElementById('sumBins').textContent = selectedBinIds.size;
+  document.getElementById('sumFuel').textContent = fuel;
+}
+
+// ──────────────────────────────────────────────
+// SIMULATE TRUCK MOVEMENT
+// ──────────────────────────────────────────────
+function simulateTruck() {
+  if (!lastRoute.length) {
+    showToast('No route to simulate. Click "Collect Bins" or "Optimize Route" first.', 'warn');
+    return;
+  }
+
+  // Stop any existing simulation
+  if (truckTimer) { clearInterval(truckTimer); truckTimer = null; }
+  if (truckMarker) { map.removeLayer(truckMarker); truckMarker = null; }
+
+  // Custom SVG Garbage Truck Icon (Matches Reference Image)
+  const truckSvg = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 70" width="60" height="42" style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.5));">
+    <!-- Garbage Body -->
+    <path d="M 35 25 L 85 25 L 90 55 L 35 55 Z" fill="#16a34a" stroke="#1f2937" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 40 30 L 70 30 L 65 50 L 40 50 Z" fill="#15803d" stroke="#1f2937" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 75 20 L 70 50 L 85 50" fill="none" stroke="#1f2937" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Top green bars over cab -->
+    <path d="M 40 25 L 30 15 L 50 15 M 35 20 L 25 10" fill="none" stroke="#1f2937" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Back round compactor part -->
+    <path d="M 85 25 C 95 25 100 40 90 55" fill="#16a34a" stroke="#1f2937" stroke-width="3"/>
+
+    <!-- Cab Base & Front (Yellow) -->
+    <path d="M 15 25 L 35 25 L 35 55 L 10 55 C 8 50 8 40 15 25 Z" fill="#facc15" stroke="#1f2937" stroke-width="3" stroke-linejoin="round"/>
+    <!-- Front grill -->
+    <path d="M 12 40 L 20 40 M 11 44 L 19 44 M 10 48 L 18 48" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Cab Window Inner -->
+    <path d="M 18 28 L 30 28 L 30 40 C 25 40 20 35 18 28 Z" fill="#bfdbfe" stroke="#1f2937" stroke-width="3"/>
+
+    <!-- Steering Wheel -->
+    <path d="M 18 35 L 24 38 M 20 33 A 4 4 0 0 0 22 40" fill="none" stroke="#1f2937" stroke-width="2"/>
+
+    <!-- Driver inside Window -->
+    <circle cx="27" cy="30" r="4" fill="#fca5a5" stroke="#1f2937" stroke-width="2"/> <!-- Face -->
+    <!-- Blue Hat -->
+    <path d="M 23 28 C 25 24 29 24 31 28 Z" fill="#3b82f6" stroke="#1f2937" stroke-width="2"/>
+    <path d="M 22 28 L 27 28" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/> <!-- brim -->
+    <!-- Blue Shirt -->
+    <path d="M 25 34 L 29 34 L 29 40 L 24 40 Z" fill="#bfdbfe" stroke="#1f2937" stroke-width="2"/>
+
+    <!-- Waving Arm Outline (Black) -->
+    <path d="M 26 34 C 34 30 31 15 34 8" fill="none" stroke="#1f2937" stroke-width="6.5" stroke-linecap="round"/>
+    <path d="M 32 8 L 31 4 M 34 8 L 34 3 M 36 8 L 37 4" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/>
+    <!-- Waving Arm Inner (Skin) -->
+    <path d="M 26 34 C 34 30 31 15 34 8" fill="none" stroke="#fca5a5" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M 32 8 L 31 4 M 34 8 L 34 3 M 36 8 L 37 4" stroke="#fca5a5" stroke-width="1.5" stroke-linecap="round"/>
+
+    <!-- Three Wheels -->
+    <circle cx="20" cy="55" r="7" fill="#374151" stroke="#1f2937" stroke-width="3"/>
+    <circle cx="20" cy="55" r="3" fill="#9ca3af"/>
+    
+    <circle cx="55" cy="55" r="7" fill="#374151" stroke="#1f2937" stroke-width="3"/>
+    <circle cx="55" cy="55" r="3" fill="#9ca3af"/>
+    
+    <circle cx="72" cy="55" r="7" fill="#374151" stroke="#1f2937" stroke-width="3"/>
+    <circle cx="72" cy="55" r="3" fill="#9ca3af"/>
+  </svg>`;
+
+  const icon = L.divIcon({
+    className: '',
+    html: truckSvg,
+    iconSize: [60, 42], iconAnchor: [30, 21]
+  });
+
+  const coords = lastRoute.map(p => [p.location_lat, p.location_lng]);
+  let idx = 0;
+
+  truckMarker = L.marker(coords[0], { icon, zIndexOffset: 9999 }).addTo(map);
+  truckMarker.bindPopup('<b>🚛 Truck in Transit</b><br>Following optimized route…').openPopup();
+
+  // Update simulate button to show running state
+  const btn = document.getElementById('simulateBtn');
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = '<span style="display:inline-block;animation:truckBounce 0.4s infinite">🚛</span> &nbsp;Simulating... (Click to Stop)';
+  btn.style.background = '#b45309';
+  btn.onclick = stopSimulation;
+
+  truckTimer = setInterval(() => {
+    idx++;
+    if (idx >= coords.length) {
+      stopSimulation();
+      showToast('🏁 Truck completed the route and returned to depot!', 'success');
+      return;
+    }
+    truckMarker.setLatLng(coords[idx]);
+    map.panTo(coords[idx], { animate: true, duration: 0.7 });
+
+    // Show which stop we're at
+    const stop = lastRoute[idx];
+    const label = stop.area || 'Waypoint';
+    if (idx < coords.length - 1) {
+      truckMarker.bindPopup(`<b>🚛 Truck Moving</b><br>Next: <strong>${label}</strong><br>Stop ${idx} of ${coords.length - 2}`).openPopup();
+    }
+  }, 1000);
+
+  function stopSimulation() {
+    if (truckTimer) { clearInterval(truckTimer); truckTimer = null; }
+    btn.innerHTML = origHTML;
+    btn.style.background = '#0369a1';
+    btn.onclick = simulateTruck;
+  }
+
+  showToast('🚛 Truck simulation started! Animating through route…');
+}
+
+
+// ──────────────────────────────────────────────
+// COLLECT / ADD BIN
+// ──────────────────────────────────────────────
+function startCollection() {
+  selectedBinIds.clear();
+  allBins.filter(b => b.fill_level >= activeThreshold).forEach(b => selectedBinIds.add(b.id));
+  renderMapMarkers();
+  renderSelectedList();
+  updateSummary([], 0);
+  document.getElementById('sumBins').textContent = selectedBinIds.size;
+  showToast(`${selectedBinIds.size} bins selected (≥${activeThreshold}%). Click "Optimize Route" to plan.`);
+  renderTable();
+  setTimeout(() => runOptimize(), 600);
+}
+
+function addBinToRoute(id) {
+  if (selectedBinIds.has(id)) { selectedBinIds.delete(id); }
+  else { selectedBinIds.add(id); }
+  renderMapMarkers();
+  renderSelectedList();
+  document.getElementById('sumBins').textContent = selectedBinIds.size;
+  renderTable();
+  // Refresh open popup if any
+  const m = binMarkers[id];
+  if (m) {
+    const bin = allBins.find(b => b.id === id);
+    if (bin) m.bindPopup(buildPopup(bin), { maxWidth: 300 });
+  }
+}
+
+// Called from inside the popup buttons
+function toggleBinFromPopup(id) {
+  addBinToRoute(id);
+  // Reopen updated popup
+  const m = binMarkers[id];
+  if (m) { setTimeout(() => m.openPopup(), 50); }
+}
+
+function renderSelectedList() {
+  const el = document.getElementById('selectedList');
+  if (!selectedBinIds.size) {
+    el.innerHTML = '<em style="color:#9ca3af">No bins selected.</em>';
+    return;
+  }
+  const items = allBins.filter(b => selectedBinIds.has(b.id))
+    .sort((a,b) => b.fill_level - a.fill_level)
+    .map(b => {
+      const col = getBinColor(b.fill_level);
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;display:inline-block"></span>
+        <span>${b.area}</span>
+        <span style="color:${col};font-weight:600;margin-left:auto">${b.fill_level}%</span>
+      </div>`;
+    }).join('');
+  el.innerHTML = items;
+}
+
+// ──────────────────────────────────────────────
+// TABLE
+// ──────────────────────────────────────────────
+function renderTable() {
+  const critOnly = document.getElementById('criticalOnly').checked;
+  const q = document.getElementById('tableSearch').value.toLowerCase();
+  let list = allBins.filter(b => {
+    if (critOnly && b.fill_level <= 85) return false;
+    if (q && !b.area.toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b) => b.fill_level - a.fill_level);
+
+  const tbody = document.getElementById('binsTableBody');
+  tbody.innerHTML = '';
+  list.forEach(bin => {
+    const s = getBinStatus(bin.fill_level);
+    const col = getBinColor(bin.fill_level);
+    const sel = selectedBinIds.has(bin.id);
+    const tr = document.createElement('tr');
+    if (sel) tr.style.background = '#eff6ff';
+    tr.innerHTML = `
+      <td style="font-weight:600;color:#374151">#${bin.id}</td>
+      <td>${bin.area}${sel ? ' <span style="font-size:0.65rem;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:2px;border:1px solid #bfdbfe;font-weight:700">IN ROUTE</span>' : ''}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="fill-track"><div class="fill-bar" style="background:${col};width:${bin.fill_level}%"></div></div>
+          <span style="font-weight:600;color:${col}">${bin.fill_level}%</span>
+        </div>
+      </td>
+      <td><span class="badge ${s.cls}">${s.text}</span></td>
+      <td>${predictFullTime(bin)}</td>
+      <td>
+        <button class="btn-collect ${sel ? 'added' : ''}"
+          onclick="addBinToRoute(${bin.id})"
+          ${sel ? 'disabled' : ''}>
+          ${sel ? '✓ Added' : '+ Add to Route'}
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ──────────────────────────────────────────────
+// MODE / SLIDER
+// ──────────────────────────────────────────────
+function onModeChange(val) {
+  activeThreshold = val;
+  document.getElementById('fillSlider').value = val;
+  document.getElementById('sliderDisplay').textContent = val + '%';
+  const span = document.getElementById('collectBtnThreshold');
+  if (span) span.textContent = val;
+  // update collect btn label with new mode threshold
+  const btn = document.getElementById('collectBtn');
+  if (btn) btn.querySelector('span') && (btn.querySelector('span').textContent = val);
+}
+function onSliderChange(val) {
+  activeThreshold = parseInt(val);
+  document.getElementById('sliderDisplay').textContent = val + '%';
+  const span = document.getElementById('collectBtnThreshold');
+  if (span) span.textContent = val;
+  document.querySelectorAll('input[name=mode]').forEach(r => { r.checked = parseInt(r.value) === activeThreshold; });
+}
+
+// ──────────────────────────────────────────────
+// CHARTS
+// ──────────────────────────────────────────────
+function updateCharts() {
+  // Fill Prediction Line Chart
+  const hours = [0,2,4,6,8,10,12,16,20,24];
+  const labels = hours.map(h => h === 0 ? 'Now' : `+${h}h`);
+  const topBins = [...allBins].sort((a,b) => b.fill_level - a.fill_level).slice(0, 3);
+  const palette = ['#dc2626','#f97316','#1e3a8a'];
+
+  const datasets = topBins.map((bin,i) => {
+    const rate = bin.fill_level > 85 ? 7 : bin.fill_level > 65 ? 5 : 3;
+    const data = hours.map(h => Math.min(100, parseFloat((bin.fill_level + rate * h).toFixed(1))));
+    return {
+      label: bin.area,
+      data,
+      borderColor: palette[i],
+      backgroundColor: palette[i] + '18',
+      tension: 0.35,
+      pointRadius: 2,
+      borderWidth: 2,
+      fill: false
+    };
+  });
+
+  if (fillChartInst) fillChartInst.destroy();
+  fillChartInst = new Chart(document.getElementById('fillChart').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'top', labels:{ boxWidth:10, usePointStyle:true, font:{size:11} }},
+        tooltip: { callbacks:{ label: c => `${c.dataset.label}: ${c.parsed.y}%` }}
+      },
+      scales: {
+        y: { min:0, max:100, ticks:{ callback:v=>v+'%', font:{size:10} }, grid:{ color:'#f3f4f6' }},
+        x: { ticks:{ font:{size:10} }, grid:{ display:false } }
+      }
+    }
+  });
+
+  // Donut Chart
+  const counts = [
+    allBins.filter(b=>b.fill_level<=40).length,
+    allBins.filter(b=>b.fill_level>40&&b.fill_level<=65).length,
+    allBins.filter(b=>b.fill_level>65&&b.fill_level<=85).length,
+    allBins.filter(b=>b.fill_level>85).length
+  ];
+  const labels2 = ['Low (0–40%)', 'Medium (40–65%)', 'High (65–85%)', 'Critical (85%+)'];
+  const colors2 = ['#22c55e','#facc15','#f97316','#dc2626'];
+
+  if (statusChartInst) statusChartInst.destroy();
+  statusChartInst = new Chart(document.getElementById('statusChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: labels2,
+      datasets: [{ data: counts, backgroundColor: colors2, borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks:{ label: c => ` ${c.label}: ${c.parsed} bins` }}
+      }
+    }
+  });
+
+  // Custom legend
+  const legend = document.getElementById('donutLegend');
+  legend.innerHTML = labels2.map((l,i) => `
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="width:11px;height:11px;border-radius:50%;background:${colors2[i]};flex-shrink:0;display:inline-block;border:1.5px solid rgba(0,0,0,0.1)"></span>
+      <span style="color:#374151">${l}</span>
+      <span style="margin-left:auto;font-weight:700;color:#1e3a8a">${counts[i]}</span>
+    </div>
+  `).join('');
+}
+
+// ──────────────────────────────────────────────
+// UI UTILS
+// ──────────────────────────────────────────────
+function showLoading(show) {
+  document.getElementById('loadingBar').style.display = show ? 'block' : 'none';
+}
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftColor = type === 'warn' ? '#f97316' : '#16a34a';
+  t.style.display = 'flex';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+}
+
+// ──────────────────────────────────────────────
+// BOOT
+// ──────────────────────────────────────────────
+(async () => {
+  showLoading(true);
+  await fetchBins();
+  showLoading(false);
+})();
+setInterval(fetchBins, 30000);
+</script>
+</body>
+</html>
